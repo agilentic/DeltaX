@@ -1,0 +1,7 @@
+{
+  "name": "GCSE Math Master",
+  "description": "A comprehensive GCSE mathematics practice platform with AI Voice Tutor, marketplace, and scheduling.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
