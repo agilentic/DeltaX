@@ -2,6 +2,60 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, MathTopic, ExamBoard, Tier, PaperType } from "../types";
 
+export const generateQuizQuestions = async (
+  board: ExamBoard,
+  topics: MathTopic[],
+  tier: Tier,
+  paperType: PaperType,
+  count: number
+): Promise<Question[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const topicsListStr = topics.join(', ');
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Generate a set of ${count} unique, high-quality GCSE Mathematics practice questions for the ${board} exam board, ${tier} tier, ${paperType} paper. The questions must be distributed across the following selected topics: ${topicsListStr}. Ensure each question has a realistic difficulty, clear phrasing, uses LaTeX for mathematical rendering where appropriate, and has a unique id. Return the response in a structured JSON format containing a "questions" array.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                topic: { type: Type.STRING, description: `The topic of the question, MUST be exactly one of: ${topicsListStr}` },
+                questionText: { type: Type.STRING, description: "The math question, use LaTeX for math symbols if needed." },
+                correctAnswer: { type: Type.STRING, description: "The final short answer." },
+                explanation: { type: Type.STRING, description: "Step-by-step explanation of how to solve it." },
+                marks: { type: Type.INTEGER }
+              },
+              required: ["id", "topic", "questionText", "correctAnswer", "explanation", "marks"]
+            }
+          }
+        },
+        required: ["questions"]
+      }
+    }
+  });
+
+  try {
+    const data = JSON.parse(response.text || '{"questions":[]}');
+    const questions = (data.questions || []).map((q: any) => ({
+      ...q,
+      topic: topics.includes(q.topic as MathTopic) ? (q.topic as MathTopic) : topics[0],
+      tier,
+      paperType,
+      board
+    }));
+    return questions;
+  } catch (error) {
+    console.error("Error parsing generated quiz questions", error);
+    return [];
+  }
+};
+
 export const generateMathQuestion = async (
   board: ExamBoard,
   topic: MathTopic,

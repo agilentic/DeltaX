@@ -14,9 +14,10 @@ import BrandBanner from './components/BrandBanner';
 import Leaderboard from './components/Leaderboard';
 import PaymentHistory from './components/PaymentHistory';
 import TutorHistory from './components/TutorHistory';
+import QuizGenerator from './components/QuizGenerator';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'practice' | 'settings' | 'marketplace' | 'booking' | 'tutor' | 'leaderboard' | 'history' | 'tutor-history' | 'ailab'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'practice' | 'settings' | 'marketplace' | 'booking' | 'tutor' | 'leaderboard' | 'history' | 'tutor-history' | 'ailab' | 'quiz'>('dashboard');
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('gcse_stats');
     if (saved) {
@@ -146,6 +147,15 @@ const App: React.FC = () => {
           {view === 'practice' && (
             <PracticeMode 
               topic={selectedTopic}
+              settings={settings}
+              bookmarks={stats.bookmarks}
+              onComplete={handleCompleteQuestion}
+              onToggleBookmark={toggleBookmark}
+              onExit={() => setView('dashboard')}
+            />
+          )}
+          {view === 'quiz' && (
+            <QuizGenerator 
               settings={settings}
               bookmarks={stats.bookmarks}
               onComplete={handleCompleteQuestion}

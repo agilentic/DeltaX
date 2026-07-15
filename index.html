@@ -7,10 +7,13 @@
     <title>MathMaster | The Future of GCSE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- KaTeX for math rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <!-- Calendly Widget -->
+    <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
     <style>
       :root {
         --apple-bg: #f5f5f7;
@@ -50,6 +53,21 @@
       }
       /* KaTeX tweak for Apple aesthetics */
       .katex { font-size: 1.1em; }
+      
+      /* Stripe input simulation */
+      .stripe-input {
+        background: #f9f9fb;
+        border: 1px solid #e6e6e6;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        color: #32325d;
+      }
+      .stripe-input:focus {
+        border-color: #0071e3;
+        outline: none;
+        box-shadow: 0 0 0 1px #0071e3;
+      }
     </style>
     <script type="importmap">
     {
@@ -62,8 +80,10 @@
       }
     }
     </script>
-  </head>
+  <link rel="stylesheet" href="/index.css">
+</head>
   <body>
     <div id="root"></div>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

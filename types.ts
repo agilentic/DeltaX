@@ -51,6 +51,27 @@ export interface Wishlist {
   bookIds: string[];
 }
 
+export interface Mentor {
+  id: string;
+  name: string;
+  credentials: string;
+  bio: string;
+  avatar: string;
+  price: number;
+  rating: number;
+  tags: string[];
+  calendlyUrl: string;
+}
+
+export interface LessonPackage {
+  id: string;
+  name: string;
+  description: string;
+  lessonCount: number;
+  discountMultiplier: number;
+  isRecurring: boolean;
+}
+
 export interface UserStats {
   totalQuestions: number;
   correctAnswers: number;
@@ -101,6 +122,7 @@ export interface Transaction {
     mentor: string;
     date: string;
     time: string;
+    planType?: string;
   };
 }
 
