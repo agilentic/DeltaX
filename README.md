@@ -16,5 +16,8 @@ View your app in AI Studio: https://ai.studio/apps/23f86de1-2328-4d25-a412-dbbe8
 1. Install dependencies:
    `npm install`
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+   and set `VITE_CALENDLY_URL` to your Calendly event URL. Optional tutor-specific
+   overrides are `VITE_CALENDLY_ALEX_URL`, `VITE_CALENDLY_SARAH_URL`, and
+   `VITE_CALENDLY_JAMES_URL`.
 3. Run the app:
    `npm run dev`

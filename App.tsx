@@ -15,9 +15,10 @@ import Leaderboard from './components/Leaderboard';
 import PaymentHistory from './components/PaymentHistory';
 import TutorHistory from './components/TutorHistory';
 import QuizGenerator from './components/QuizGenerator';
+import Flashcards from './components/Flashcards';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'practice' | 'settings' | 'marketplace' | 'booking' | 'tutor' | 'leaderboard' | 'history' | 'tutor-history' | 'ailab' | 'quiz'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'practice' | 'settings' | 'marketplace' | 'booking' | 'tutor' | 'leaderboard' | 'history' | 'tutor-history' | 'ailab' | 'quiz' | 'flashcards'>('dashboard');
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('gcse_stats');
     if (saved) {
@@ -163,6 +164,7 @@ const App: React.FC = () => {
               onExit={() => setView('dashboard')}
             />
           )}
+          {view === 'flashcards' && <Flashcards settings={settings} />}
           {view === 'settings' && <Settings settings={settings} onUpdate={setSettings} />}
           {view === 'marketplace' && (
             <Marketplace 

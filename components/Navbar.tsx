@@ -12,6 +12,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, setView, streak }) => {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'practice', label: 'Practice' },
     { id: 'quiz', label: 'Quiz' },
+    { id: 'flashcards', label: 'Flashcards' },
     { id: 'tutor', label: 'AI Tutor' },
     { id: 'booking', label: 'Coaching' },
     { id: 'ailab', label: 'AI Lab' },

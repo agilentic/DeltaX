@@ -2,6 +2,51 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, MathTopic, ExamBoard, Tier, PaperType } from "../types";
 
+const CONTENT_CACHE_TTL = 1000 * 60 * 60 * 24;
+const memoryCache = new Map<string, Question[]>();
+const pendingRequests = new Map<string, Promise<Question[]>>();
+
+const cacheKey = (board: ExamBoard, topics: MathTopic[], tier: Tier, paperType: PaperType, count: number) =>
+  `dx-content-v2:${board}:${tier}:${paperType}:${[...topics].sort().join('|')}:${count}`;
+
+const readCache = (key: string) => {
+  const inMemory = memoryCache.get(key);
+  if (inMemory) return inMemory;
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || 'null');
+    if (value?.savedAt > Date.now() - CONTENT_CACHE_TTL && Array.isArray(value.questions)) {
+      memoryCache.set(key, value.questions);
+      return value.questions as Question[];
+    }
+  } catch { /* storage can be disabled */ }
+  return undefined;
+};
+
+const writeCache = (key: string, questions: Question[]) => {
+  memoryCache.set(key, questions);
+  try { localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), questions })); } catch { /* quota/private mode */ }
+};
+
+const fallbackQuestions = (board: ExamBoard, topics: MathTopic[], tier: Tier, paperType: PaperType, count: number): Question[] => {
+  const templates: Record<MathTopic, Array<[string, string, string]>> = {
+    [MathTopic.Number]: [['Calculate $15\\%$ of $240$.', '36', '$10\\%=24$ and $5\\%=12$, so $15\\%=36$.'], ['Write $0.375$ as a fraction in its simplest form.', '$\\frac{3}{8}$', '$0.375=\\frac{375}{1000}=\\frac{3}{8}$.']],
+    [MathTopic.Algebra]: [['Solve $3x+7=25$.', '6', 'Subtract 7, then divide by 3: $x=18/3=6$.'], ['Expand and simplify $4(x+3)-2x$.', '$2x+12$', '$4x+12-2x=2x+12$.']],
+    [MathTopic.Ratio]: [['Share £84 in the ratio $3:4$.', '£36 and £48', 'There are 7 parts; each is £12. Multiply by 3 and 4.'], ['A recipe uses 250 g flour for 10 cakes. How much for 16?', '400 g', '$250\\div10\\times16=400$.']],
+    [MathTopic.Geometry]: [['Find the area of a triangle with base 12 cm and height 7 cm.', '42 cm²', '$\\frac12\\times12\\times7=42$.'], ['The angles in a triangle are $x$, $2x$, and $3x$. Find $x$.', '$30^\\circ$', '$6x=180^\\circ$, so $x=30^\\circ$.']],
+    [MathTopic.Probability]: [['A fair die is rolled. Find the probability of an even number.', '$\\frac{1}{2}$', 'Three of the six outcomes are even, so $3/6=1/2$.'], ['A bag has 3 red and 7 blue counters. Find $P(red)$.', '$\\frac{3}{10}$', 'There are 10 counters and 3 are red.']],
+    [MathTopic.Statistics]: [['Find the mean of $4,7,8,9$.', '7', 'The total is 28 and $28\\div4=7$.'], ['Find the median of $3,9,5,12,7$.', '7', 'Order them: $3,5,7,9,12$; the middle is 7.']],
+    [MathTopic.Calculus]: [['Differentiate $y=3x^2+4x-1$.', '$6x+4$', 'Use the power rule: $3x^2\\to6x$, $4x\\to4$.'], ['Find $\\int 6x\\,dx$.', '$3x^2+C$', 'Increase the power by one and divide by the new power.']],
+  };
+  return Array.from({ length: count }, (_, i) => {
+    const topic = topics[i % topics.length];
+    const options = templates[topic];
+    const [questionText, correctAnswer, explanation] = options[Math.floor(i / topics.length) % options.length];
+    return { id: `local-${topic}-${i}-${board}-${tier}`, topic, board, tier, paperType, questionText, correctAnswer, explanation, marks: 1 };
+  });
+};
+
+const isQuestion = (q: any) => q && typeof q.questionText === 'string' && typeof q.correctAnswer === 'string' && typeof q.explanation === 'string';
+
 export const generateQuizQuestions = async (
   board: ExamBoard,
   topics: MathTopic[],
@@ -9,6 +54,18 @@ export const generateQuizQuestions = async (
   paperType: PaperType,
   count: number
 ): Promise<Question[]> => {
+  const key = cacheKey(board, topics, tier, paperType, count);
+  const cached = readCache(key);
+  if (cached) return cached;
+  const pending = pendingRequests.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+  const localFallback = fallbackQuestions(board, topics, tier, paperType, count);
+  if (!process.env.API_KEY) {
+    writeCache(key, localFallback);
+    return localFallback;
+  }
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const topicsListStr = topics.join(', ');
   const response = await ai.models.generateContent({
@@ -42,18 +99,30 @@ export const generateQuizQuestions = async (
 
   try {
     const data = JSON.parse(response.text || '{"questions":[]}');
-    const questions = (data.questions || []).map((q: any) => ({
+    const questions = (data.questions || []).filter(isQuestion).slice(0, count).map((q: any, index: number) => ({
       ...q,
+      id: q.id || `generated-${Date.now()}-${index}`,
       topic: topics.includes(q.topic as MathTopic) ? (q.topic as MathTopic) : topics[0],
       tier,
       paperType,
       board
     }));
-    return questions;
+    const complete = [...questions, ...localFallback.slice(questions.length)].slice(0, count);
+    writeCache(key, complete);
+    return complete;
   } catch (error) {
     console.error("Error parsing generated quiz questions", error);
-    return [];
+    writeCache(key, localFallback);
+    return localFallback;
   }
+  })().catch(error => {
+    console.error('Content generation failed; using local content.', error);
+    const fallback = fallbackQuestions(board, topics, tier, paperType, count);
+    writeCache(key, fallback);
+    return fallback;
+  }).finally(() => pendingRequests.delete(key));
+  pendingRequests.set(key, request);
+  return request;
 };
 
 export const generateMathQuestion = async (
@@ -62,40 +131,23 @@ export const generateMathQuestion = async (
   tier: Tier,
   paperType: PaperType
 ): Promise<Question> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Generate a GCSE Mathematics practice question for the ${board} board, topic ${topic}, ${tier} tier, ${paperType} paper. Return the response in a structured JSON format.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          questionText: { type: Type.STRING, description: "The math question, use LaTeX for math symbols if needed." },
-          correctAnswer: { type: Type.STRING, description: "The final short answer." },
-          explanation: { type: Type.STRING, description: "Step-by-step explanation of how to solve it." },
-          marks: { type: Type.INTEGER }
-        },
-        required: ["id", "questionText", "correctAnswer", "explanation", "marks"]
-      }
-    }
-  });
-
-  const questionData = JSON.parse(response.text || '{}');
-  return {
-    ...questionData,
-    topic,
-    tier,
-    paperType,
-    board
-  };
+  // Fetch a small batch once: subsequent practice questions resolve from the
+  // 24-hour cache instead of paying one network round trip per card.
+  const questions = await generateQuizQuestions(board, [topic], tier, paperType, 10);
+  return questions[Math.floor(Math.random() * questions.length)];
 };
 
 export const evaluateAnswer = async (
   question: Question,
   userAnswer: string
 ): Promise<{ isCorrect: boolean; feedback: string }> => {
+  const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, '').replace(/[,£$]/g, '');
+  if (normalize(userAnswer) === normalize(question.correctAnswer)) {
+    return { isCorrect: true, feedback: 'Correct — your answer matches the model answer.' };
+  }
+  if (!process.env.API_KEY) {
+    return { isCorrect: false, feedback: `Compare your answer with ${question.correctAnswer}. ${question.explanation}` };
+  }
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
